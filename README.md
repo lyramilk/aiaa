@@ -24,7 +24,7 @@ ubuntu 24.04.1 LTS
 ## 环境变量
 ```
 export DEEPSEEK_APIKEY=<DeepseekAPI的key>
-export PYTHONPATH=/data/case/lyramilk/aiaa/aiaa
+export PYTHONPATH=/data/case/lyramilk/aiaa/aiaa/include
 ```
 
 ## 目录结构
@@ -32,25 +32,35 @@ export PYTHONPATH=/data/case/lyramilk/aiaa/aiaa
 aiaa/dataset 用到的静态数据保存在这里。
 aiaa/demo 源码
 aiaa/include import目录
+aiaa/static 静态资源
 ```
 
 # 关于
+个人网站
+```
+https://www.lyramilk.com/
+```
+
 github主页
 ```
 https://github.com/lyramilk
 ```
+
 gitee主页
 ```
 https://github.com/lyramilk
 ```
+
 微信
 ```
 lyramilk
 ```
+
 微信公众号
 ```
 程序员 lyramilk
 ```
+
 qq
 ```
 214395
