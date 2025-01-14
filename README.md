@@ -36,32 +36,7 @@ aiaa/static 静态资源
 ```
 
 # 关于
-个人网站
-```
-https://www.lyramilk.com/
-```
-
-github主页
-```
-https://github.com/lyramilk
-```
-
-gitee主页
-```
-https://github.com/lyramilk
-```
-
-微信
-```
-lyramilk
-```
-
 微信公众号
 ```
 程序员 lyramilk
-```
-
-qq
-```
-214395
 ```
