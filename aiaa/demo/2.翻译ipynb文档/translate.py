@@ -41,7 +41,7 @@ def translate_markdown(markdown_text):
 		"messages": [
 			{
 				"role": "system",
-				"content": "翻译下面文字部分，保留原始的html、markdown、katex代码格式。不要添加额外的markdown标记"
+				"content": "翻译下面文字部分，保留原始的html、markdown、katex代码格式。不要添加额外的markdown标记。只翻译给定的文字不要联想没有提及的内容。"
 			},
 			{
 				"role": "user",
