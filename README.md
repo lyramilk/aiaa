@@ -36,11 +36,9 @@ aiaa/static 静态资源
 ```
 
 # 关于
-<<<<<<< HEAD
-
-=======
->>>>>>> 0d2e691a155b45b4080d895d252e984cdbbdfcfe
+x
 微信公众号
 ```
 程序员 lyramilk
 ```
+
