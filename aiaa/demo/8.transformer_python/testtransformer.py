@@ -8,6 +8,9 @@ import copy  # 导入copy库
 
 
 class Embeddings(nn.Module):  # 定义Embeddings类，继承自nn.Module
+	"""
+	Embeddings类是文本嵌入层，用于将词汇表中的词转换为向量
+	"""
 	def __init__(self, d_model: int, vocab_size: int):  # 定义构造函数，接收d_model和vocab_size两个参数
 		"""
 		初始化Embeddings类
@@ -31,6 +34,9 @@ class Embeddings(nn.Module):  # 定义Embeddings类，继承自nn.Module
 
 
 class PositionalEncoding(nn.Module):  # 定义PositionalEncoding类，继承自nn.Module
+	"""
+	PositionalEncoding类是位置编码层，用于将位置信息添加到输入中
+	"""
 	def __init__(self, d_model: int, dropout: float, max_len: int = 5000):  # 定义构造函数，接收d_model, dropout和max_len三个参数
 		"""
 		初始化PositionalEncoding类
@@ -65,9 +71,10 @@ class PositionalEncoding(nn.Module):  # 定义PositionalEncoding类，继承自n
 
 
 class MultiHeadedAttention(nn.Module):  # 定义MultiHeadedAttention类，继承自nn.Module
-	def __init__(
-		self, d_model: int, n_heads: int, dropout: float = 0.1
-	):  # 定义构造函数，接收d_model, n_heads和dropout三个参数
+	"""
+	MultiHeadedAttention类是多头注意力机制，用于将输入的query, key和value转换为多头注意力
+	"""
+	def __init__(self, d_model: int, n_heads: int, dropout: float = 0.1):  # 定义构造函数，接收d_model, n_heads和dropout三个参数
 		"""
 		初始化MultiHeadedAttention类
 		Args:
@@ -79,19 +86,11 @@ class MultiHeadedAttention(nn.Module):  # 定义MultiHeadedAttention类，继承
 		assert d_model % n_heads == 0  # 断言d_model可以被n_heads整除
 		self.d_k = d_model // n_heads  # 计算每个头的维度
 		self.n_heads = n_heads  # 将n_heads赋值给self.n_heads
-		self.linears = nn.ModuleList(
-			[nn.Linear(d_model, d_model) for _ in range(4)]
-		)  # 创建一个包含4个Linear层的ModuleList
+		self.linears = nn.ModuleList([nn.Linear(d_model, d_model) for _ in range(4)])  # 创建一个包含4个Linear层的ModuleList
 		self.attn = None  # 将self.attn初始化为None
 		self.dropout = nn.Dropout(p=dropout)  # 创建一个Dropout层，接收dropout参数
 
-	def attention(
-		self,
-		query: torch.Tensor,
-		key: torch.Tensor,
-		value: torch.Tensor,
-		mask: torch.Tensor = None,
-	) -> tuple[torch.Tensor, torch.Tensor]:  # 定义attention函数，接收query, key, value和mask四个参数
+	def attention(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:  # 定义attention函数，接收query, key, value和mask四个参数
 		"""
 		注意力机制
 		Args:
@@ -103,26 +102,15 @@ class MultiHeadedAttention(nn.Module):  # 定义MultiHeadedAttention类，继承
 			输出和注意力
 		"""
 		d_k = query.size(-1)  # 获取query的最后一维的维度
-		scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(
-			d_k
-		)  # 计算query和key的转置的点积，并除以d_k的平方根
+		scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)  # 计算query和key的转置的点积，并除以d_k的平方根
 		if mask is not None:  # 如果mask不为None
 			scores = scores.masked_fill(mask == 0, -1e9)  # 将scores中mask为0的位置填充为-1e9
 		p_attn = F.softmax(scores, dim=-1)  # 对scores的最后一维进行softmax操作
 		if self.dropout is not None:  # 如果self.dropout不为None
 			p_attn = self.dropout(p_attn)  # 对p_attn进行dropout操作
-		return (
-			torch.matmul(p_attn, value),
-			p_attn,
-		)  # 返回p_attn和value的点积，以及p_attn
+		return torch.matmul(p_attn, value), p_attn  # 返回p_attn和value的点积，以及p_attn
 
-	def forward(
-		self,
-		query: torch.Tensor,
-		key: torch.Tensor,
-		value: torch.Tensor,
-		mask: torch.Tensor = None,
-	) -> torch.Tensor:  # 定义前向传播函数，接收query, key, value和mask四个参数
+	def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:  # 定义前向传播函数，接收query, key, value和mask四个参数
 		"""
 		多头注意力机制
 		Args:
@@ -137,27 +125,21 @@ class MultiHeadedAttention(nn.Module):  # 定义MultiHeadedAttention类，继承
 			mask = mask.unsqueeze(1)  # 将mask的形状变为(batch_size, 1, seq_len)
 		nbatches = query.size(0)  # 获取query的第一维的维度
 
-		# 1) Do all the linear projections in batch from d_model => h x d_k
-		query, key, value = [
-			l(x).view(nbatches, -1, self.n_heads, self.d_k).transpose(1, 2)
-			for l, x in zip(self.linears, (query, key, value))
-		]  # 将query, key, value分别通过对应的Linear层，并将形状变为(nbatches, n_heads, seq_len, d_k)
+		# 将query, key, value分别通过对应的Linear层，并将形状变为(nbatches, n_heads, seq_len, d_k)
+		query, key, value = [l(x).view(nbatches, -1, self.n_heads, self.d_k).transpose(1, 2) for l, x in zip(self.linears, (query, key, value))]
 
-		# 2) Apply attention on all the projected vectors in batch.
-		x, self.attn = self.attention(
-			query, key, value, mask=mask
-		)  # 调用attention函数，计算x和self.attn
+		# 计算x和self.attn
+		x, self.attn = self.attention(query, key, value, mask=mask) 
 
-		# 3) "Concat" using a view and apply a final linear.
-		x = (
-			x.transpose(1, 2)
-			.contiguous()
-			.view(nbatches, -1, self.n_heads * self.d_k)
-		)  # 将x的形状变为(nbatches, seq_len, d_model)
+		# 将x的形状变为(nbatches, seq_len, d_model)
+		x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.n_heads * self.d_k)  # 将x的形状变为(nbatches, seq_len, d_model)
 		return self.linears[-1](x)  # 返回x通过最后一个Linear层的输出
 
 
 class LayerNorm(nn.Module):  # 定义LayerNorm类，继承自nn.Module
+	"""
+	LayerNorm类是层归一化，用于将输入的x归一化
+	"""
 	def __init__(self, features: int, eps: float = 1e-6):  # 定义构造函数，接收features和eps两个参数
 		"""
 		初始化LayerNorm
@@ -185,10 +167,8 @@ class LayerNorm(nn.Module):  # 定义LayerNorm类，继承自nn.Module
 
 class SublayerConnection(nn.Module):  # 定义SublayerConnection类，继承自nn.Module
 	"""
-	A residual connection followed by a layer norm.
-	Note for code simplicity the norm is first as opposed to last.
+	SublayerConnection类是子层连接，用于将输入的x加上子层的输出
 	"""
-
 	def __init__(self, size: int, dropout: float):  # 定义构造函数，接收size和dropout两个参数
 		"""
 		初始化SublayerConnection
@@ -200,9 +180,7 @@ class SublayerConnection(nn.Module):  # 定义SublayerConnection类，继承自n
 		self.norm = LayerNorm(size)  # 创建一个LayerNorm层
 		self.dropout = nn.Dropout(dropout)  # 创建一个Dropout层
 
-	def forward(
-		self, x: torch.Tensor, sublayer: nn.Module
-	) -> torch.Tensor:  # 定义前向传播函数，接收x和sublayer两个参数
+	def forward(self, x: torch.Tensor, sublayer: nn.Module) -> torch.Tensor:  # 定义前向传播函数，接收x和sublayer两个参数
 		"""
 		子层连接
 		Args:
@@ -211,15 +189,13 @@ class SublayerConnection(nn.Module):  # 定义SublayerConnection类，继承自n
 		Returns:
 			输出
 		"""
-		"Apply residual connection to any sublayer with the same size."
-		return x + self.dropout(
-			sublayer(self.norm(x))
-		)  # 返回x加上sublayer的输出，其中sublayer的输入为x经过LayerNorm的结果
+		return x + self.dropout(sublayer(self.norm(x)))  # 返回x加上sublayer的输出，其中sublayer的输入为x经过LayerNorm的结果
 
 
 class PositionwiseFeedForward(nn.Module):  # 定义PositionwiseFeedForward类，继承自nn.Module
-	"Implements FFN equation."
-
+	"""
+	PositionwiseFeedForward类是位置前馈神经网络，用于将输入的x转换为前馈神经网络的输出
+	"""
 	def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1):  # 定义构造函数，接收d_model, d_ff和dropout三个参数
 		"""
 		初始化PositionwiseFeedForward
@@ -245,11 +221,10 @@ class PositionwiseFeedForward(nn.Module):  # 定义PositionwiseFeedForward类，
 
 
 class EncoderLayer(nn.Module):  # 定义EncoderLayer类，继承自nn.Module
-	"Encoder is made up of self-attn and feed forward (defined below)"
-
-	def __init__(
-		self, size: int, self_attn: nn.Module, feed_forward: nn.Module, dropout: float
-	):  # 定义构造函数，接收size, self_attn, feed_forward和dropout四个参数
+	"""
+	EncoderLayer是编码器层，由自注意力机制和前馈神经网络组成
+	"""
+	def __init__(self, size: int, self_attn: nn.Module, feed_forward: nn.Module, dropout: float):  # 定义构造函数，接收size, self_attn, feed_forward和dropout四个参数
 		"""
 		初始化EncoderLayer
 		Args:
@@ -261,14 +236,10 @@ class EncoderLayer(nn.Module):  # 定义EncoderLayer类，继承自nn.Module
 		super(EncoderLayer, self).__init__()  # 调用父类nn.Module的构造函数
 		self.self_attn = self_attn  # 将self_attn赋值给self.self_attn
 		self.feed_forward = feed_forward  # 将feed_forward赋值给self.feed_forward
-		self.sublayer = nn.ModuleList(
-			[SublayerConnection(size, dropout) for _ in range(2)]
-		)  # 创建一个包含2个SublayerConnection层的ModuleList
+		self.sublayer = nn.ModuleList([SublayerConnection(size, dropout) for _ in range(2)])  # 创建一个包含2个SublayerConnection层的ModuleList
 		self.size = size  # 将size赋值给self.size
 
-	def forward(
-		self, x: torch.Tensor, mask: torch.Tensor
-	) -> torch.Tensor:  # 定义前向传播函数，接收x和mask两个参数
+	def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收x和mask两个参数
 		"""
 		编码器层
 		Args:
@@ -278,15 +249,14 @@ class EncoderLayer(nn.Module):  # 定义EncoderLayer类，继承自nn.Module
 			输出
 		"""
 		"Follow Figure 1 (left) for connections."
-		x = self.sublayer[0](
-			x, lambda x: self.self_attn(x, x, x, mask)
-		)  # 将x通过第一个SublayerConnection层，其中sublayer为self_attn
+		x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))  # 将x通过第一个SublayerConnection层，其中sublayer为self_attn
 		return self.sublayer[1](x, self.feed_forward)  # 将x通过第二个SublayerConnection层，其中sublayer为feed_forward
 
 
 class Encoder(nn.Module):  # 定义Encoder类，继承自nn.Module
-	"Core encoder is a stack of N layers"
-
+	"""
+	Encoder类是编码器，由多个EncoderLayer组成
+	"""
 	def __init__(self, layer: nn.Module, N: int):  # 定义构造函数，接收layer和N两个参数
 		"""
 		初始化Encoder
@@ -298,9 +268,7 @@ class Encoder(nn.Module):  # 定义Encoder类，继承自nn.Module
 		self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(N)])  # 创建一个包含N个layer的ModuleList
 		self.norm = LayerNorm(layer.size)  # 创建一个LayerNorm层
 
-	def forward(
-		self, x: torch.Tensor, mask: torch.Tensor
-	) -> torch.Tensor:  # 定义前向传播函数，接收x和mask两个参数
+	def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收x和mask两个参数
 		"""
 		编码器
 		Args:
@@ -316,16 +284,10 @@ class Encoder(nn.Module):  # 定义Encoder类，继承自nn.Module
 
 
 class DecoderLayer(nn.Module):  # 定义DecoderLayer类，继承自nn.Module
-	"Decoder is made of self-attn, src-attn, and feed forward (defined below)"
-
-	def __init__(
-		self,
-		size: int,
-		self_attn: nn.Module,
-		src_attn: nn.Module,
-		feed_forward: nn.Module,
-		dropout: float,
-	):  # 定义构造函数，接收size, self_attn, src_attn, feed_forward和dropout五个参数
+	"""
+	DecoderLayer是解码器层，由自注意力机制、编码器-解码器注意力和前馈神经网络组成
+	"""
+	def __init__(self, size: int, self_attn: nn.Module, src_attn: nn.Module, feed_forward: nn.Module, dropout: float):  # 定义构造函数，接收size, self_attn, src_attn, feed_forward和dropout五个参数
 		"""
 		初始化DecoderLayer
 		Args:
@@ -340,17 +302,9 @@ class DecoderLayer(nn.Module):  # 定义DecoderLayer类，继承自nn.Module
 		self.self_attn = self_attn  # 将self_attn赋值给self.self_attn
 		self.src_attn = src_attn  # 将src_attn赋值给self.src_attn
 		self.feed_forward = feed_forward  # 将feed_forward赋值给self.feed_forward
-		self.sublayer = nn.ModuleList(
-			[SublayerConnection(size, dropout) for _ in range(3)]
-		)  # 创建一个包含3个SublayerConnection层的ModuleList
+		self.sublayer = nn.ModuleList([SublayerConnection(size, dropout) for _ in range(3)])  # 创建一个包含3个SublayerConnection层的ModuleList
 
-	def forward(
-		self,
-		x: torch.Tensor,
-		memory: torch.Tensor,
-		src_mask: torch.Tensor,
-		tgt_mask: torch.Tensor,
-	) -> torch.Tensor:  # 定义前向传播函数，接收x, memory, src_mask和tgt_mask四个参数
+	def forward(self, x: torch.Tensor, memory: torch.Tensor, src_mask: torch.Tensor, tgt_mask: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收x, memory, src_mask和tgt_mask四个参数
 		"""
 		解码器层
 		Args:
@@ -363,18 +317,15 @@ class DecoderLayer(nn.Module):  # 定义DecoderLayer类，继承自nn.Module
 		"""
 		"Follow Figure 1 (right) for connections."
 		m = memory  # 将memory赋值给m
-		x = self.sublayer[0](
-			x, lambda x: self.self_attn(x, x, x, tgt_mask)
-		)  # 将x通过第一个SublayerConnection层，其中sublayer为self_attn
-		x = self.sublayer[1](
-			x, lambda x: self.src_attn(x, m, m, src_mask)
-		)  # 将x通过第二个SublayerConnection层，其中sublayer为src_attn
+		x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask))  # 将x通过第一个SublayerConnection层，其中sublayer为self_attn
+		x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))  # 将x通过第二个SublayerConnection层，其中sublayer为src_attn
 		return self.sublayer[2](x, self.feed_forward)  # 将x通过第三个SublayerConnection层，其中sublayer为feed_forward
 
 
 class Decoder(nn.Module):  # 定义Decoder类，继承自nn.Module
-	"Generic N layer decoder with masking."
-
+	"""
+	Decoder类是解码器，由多个DecoderLayer组成
+	"""
 	def __init__(self, layer: nn.Module, N: int):  # 定义构造函数，接收layer和N两个参数
 		"""
 		初始化Decoder
@@ -386,13 +337,7 @@ class Decoder(nn.Module):  # 定义Decoder类，继承自nn.Module
 		self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(N)])  # 创建一个包含N个layer的ModuleList
 		self.norm = LayerNorm(layer.size)  # 创建一个LayerNorm层
 
-	def forward(
-		self,
-		x: torch.Tensor,
-		memory: torch.Tensor,
-		src_mask: torch.Tensor,
-		tgt_mask: torch.Tensor,
-	) -> torch.Tensor:  # 定义前向传播函数，接收x, memory, src_mask和tgt_mask四个参数
+	def forward(self, x: torch.Tensor, memory: torch.Tensor, src_mask: torch.Tensor, tgt_mask: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收x, memory, src_mask和tgt_mask四个参数
 		"""
 		解码器
 		Args:
@@ -409,8 +354,9 @@ class Decoder(nn.Module):  # 定义Decoder类，继承自nn.Module
 
 
 class Generator(nn.Module):  # 定义Generator类，继承自nn.Module
-	"Define standard linear + softmax generation step."
-
+	"""
+	Generator类是生成器，用于将输入的x转换为生成器的输出
+	"""
 	def __init__(self, d_model: int, vocab: int):  # 定义构造函数，接收d_model和vocab两个参数
 		"""
 		初始化生成器
@@ -434,18 +380,10 @@ class Generator(nn.Module):  # 定义Generator类，继承自nn.Module
 
 class EncoderDecoder(nn.Module):  # 定义EncoderDecoder类，继承自nn.Module
 	"""
-	A standard Encoder-Decoder architecture. Base for this and many
-	other models.
+	EncoderDecoder类是编码解码器，用于将输入的src, tgt, src_mask和tgt_mask转换为生成器的输出
 	"""
 
-	def __init__(
-		self,
-		encoder: nn.Module,
-		decoder: nn.Module,
-		src_embed: nn.Module,
-		tgt_embed: nn.Module,
-		generator: nn.Module,
-	):  # 定义构造函数，接收encoder, decoder, src_embed, tgt_embed和generator五个参数
+	def __init__(self, encoder: nn.Module, decoder: nn.Module, src_embed: nn.Module, tgt_embed: nn.Module, generator: nn.Module):  # 定义构造函数，接收encoder, decoder, src_embed, tgt_embed和generator五个参数
 		"""
 		初始化编码解码器
 		Args:
@@ -462,13 +400,7 @@ class EncoderDecoder(nn.Module):  # 定义EncoderDecoder类，继承自nn.Module
 		self.tgt_embed = tgt_embed  # 将tgt_embed赋值给self.tgt_embed
 		self.generator = generator  # 将generator赋值给self.generator
 
-	def forward(
-		self,
-		src: torch.Tensor,
-		tgt: torch.Tensor,
-		src_mask: torch.Tensor,
-		tgt_mask: torch.Tensor,
-	) -> torch.Tensor:  # 定义前向传播函数，接收src, tgt, src_mask和tgt_mask四个参数
+	def forward(self, src: torch.Tensor, tgt: torch.Tensor, src_mask: torch.Tensor, tgt_mask: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收src, tgt, src_mask和tgt_mask四个参数
 		"""
 		编码解码器
 		Args:
@@ -480,13 +412,9 @@ class EncoderDecoder(nn.Module):  # 定义EncoderDecoder类，继承自nn.Module
 			输出
 		"""
 		"Take in and process masked src and target sequences."
-		return self.decode(
-			self.encode(src, src_mask), src_mask, tgt, tgt_mask
-		)  # 返回解码器的输出，其中解码器的输入为编码器的输出，src_mask, tgt和tgt_mask
+		return self.decode(self.encode(src, src_mask), src_mask, tgt, tgt_mask)  # 返回解码器的输出，其中解码器的输入为编码器的输出，src_mask, tgt和tgt_mask
 
-	def encode(
-		self, src: torch.Tensor, src_mask: torch.Tensor
-	) -> torch.Tensor:  # 定义encode函数，接收src和src_mask两个参数
+	def encode(self, src: torch.Tensor, src_mask: torch.Tensor) -> torch.Tensor:  # 定义encode函数，接收src和src_mask两个参数
 		"""
 		编码
 		Args:
@@ -495,17 +423,9 @@ class EncoderDecoder(nn.Module):  # 定义EncoderDecoder类，继承自nn.Module
 		Returns:
 			输出
 		"""
-		return self.encoder(
-			self.src_embed(src), src_mask
-		)  # 返回编码器的输出，其中编码器的输入为src经过src_embed的结果和src_mask
+		return self.encoder(self.src_embed(src), src_mask)  # 返回编码器的输出，其中编码器的输入为src经过src_embed的结果和src_mask
 
-	def decode(
-		self,
-		memory: torch.Tensor,
-		src_mask: torch.Tensor,
-		tgt: torch.Tensor,
-		tgt_mask: torch.Tensor,
-	) -> torch.Tensor:  # 定义decode函数，接收memory, src_mask, tgt和tgt_mask四个参数
+	def decode(self, memory: torch.Tensor, src_mask: torch.Tensor, tgt: torch.Tensor, tgt_mask: torch.Tensor) -> torch.Tensor:  # 定义decode函数，接收memory, src_mask, tgt和tgt_mask四个参数
 		"""
 		解码
 		Args:
@@ -516,15 +436,14 @@ class EncoderDecoder(nn.Module):  # 定义EncoderDecoder类，继承自nn.Module
 		Returns:
 			输出
 		"""
-		return self.decoder(
-			self.tgt_embed(tgt), memory, src_mask, tgt_mask
-		)  # 返回解码器的输出，其中解码器的输入为tgt经过tgt_embed的结果, memory, src_mask和tgt_mask
+		return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask)  # 返回解码器的输出，其中解码器的输入为tgt经过tgt_embed的结果, memory, src_mask和tgt_mask
 
 
 class Transformer(nn.Module):  # 定义Transformer类
-	def __init__(
-		self, d_model: int, n_heads: int, d_ff: int, n_layers: int, dropout: float = 0.1
-	):  # 定义构造函数
+	"""
+	Transformer类是Transformer模型，用于将输入的src, tgt, src_mask和tgt_mask转换为生成器的输出
+	"""
+	def __init__(self, d_model: int, n_heads: int, d_ff: int, n_layers: int, dropout: float = 0.1):  # 定义构造函数
 		"""
 		初始化Transformer
 		Args:
@@ -536,50 +455,27 @@ class Transformer(nn.Module):  # 定义Transformer类
 		"""
 		super(Transformer, self).__init__()  # 调用父类的构造函数
 		c = copy.deepcopy  # 定义别名
-		attn = MultiHeadedAttention(
-			d_model, n_heads
-		)  # 实例化MultiHeadedAttention
-		ff = PositionwiseFeedForward(
-			d_model, d_ff, dropout
-		)  # 实例化PositionwiseFeedForward
-		position = PositionalEncoding(
-			d_model, dropout
-		)  # 实例化PositionalEncoding
-		self.encoder = Encoder(
-			EncoderLayer(d_model, c(attn), c(ff), dropout), n_layers
-		)  # 实例化Encoder
-		self.decoder = Decoder(
-			DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout), n_layers
-		)  # 实例化Decoder
+		attn = MultiHeadedAttention(d_model, n_heads)  # 实例化MultiHeadedAttention
+		ff = PositionwiseFeedForward(d_model, d_ff, dropout)  # 实例化PositionwiseFeedForward
+		position = PositionalEncoding(d_model, dropout)  # 实例化PositionalEncoding
+		self.encoder = Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), n_layers)  # 实例化Encoder
+		self.decoder = Decoder(DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout), n_layers)  # 实例化Decoder
 
-		tokenizer_path = snapshot_download(
-			"lyramilk/deepseek_v3_tokenizer"
-		)  # 下载分词器
+		tokenizer_path = snapshot_download("lyramilk/deepseek_v3_tokenizer")  # 下载分词器
 
-		self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-			tokenizer_path
-		)  # 加载分词器
+		self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_path)  # 加载分词器
 
-		self.generator = Generator(
-			d_model, self.tokenizer.vocab_size
-		)  # 实例化Generator
+		self.generator = Generator(d_model, self.tokenizer.vocab_size)  # 实例化Generator
 
-		self.src_embed = nn.Sequential(
-			Embeddings(d_model, self.tokenizer.vocab_size), c(position)
-		)  # 定义源语言嵌入
-		self.tgt_embed = nn.Sequential(
-			Embeddings(d_model, self.tokenizer.vocab_size), c(position)
-		)  # 定义目标语言嵌入
+		self.src_embed = nn.Sequential(Embeddings(d_model, self.tokenizer.vocab_size), c(position))  # 定义源语言嵌入
+		self.tgt_embed = nn.Sequential(Embeddings(d_model, self.tokenizer.vocab_size), c(position))  # 定义目标语言嵌入
 
-		# This was important from their code.
-		# Initialize parameters with Glorot / fan_avg.
-		for p in self.parameters():  # 初始化模型参数
-			if p.dim() > 1:
-				nn.init.xavier_uniform_(p)
+		# 初始化模型参数
+		for p in self.parameters():  # 遍历模型参数
+			if p.dim() > 1:  # 如果参数的维度大于1
+				nn.init.xavier_uniform_(p)  # 使用Xavier均匀分布初始化参数
 
-	def encode(
-		self, src: torch.Tensor, src_mask: torch.Tensor
-	) -> torch.Tensor:  # 定义encode函数，接收src和src_mask两个参数
+	def encode(self, src: torch.Tensor, src_mask: torch.Tensor) -> torch.Tensor:  # 定义encode函数，接收src和src_mask两个参数
 		"""
 		编码
 		Args:
@@ -588,17 +484,9 @@ class Transformer(nn.Module):  # 定义Transformer类
 		Returns:
 			输出
 		"""
-		return self.encoder(
-			self.src_embed(src), src_mask
-		)  # 返回编码器的输出，其中编码器的输入为src经过src_embed的结果和src_mask
+		return self.encoder(self.src_embed(src), src_mask)  # 返回编码器的输出，其中编码器的输入为src经过src_embed的结果和src_mask
 
-	def decode(
-		self,
-		memory: torch.Tensor,
-		src_mask: torch.Tensor,
-		tgt: torch.Tensor,
-		tgt_mask: torch.Tensor,
-	) -> torch.Tensor:  # 定义decode函数，接收memory, src_mask, tgt和tgt_mask四个参数
+	def decode(self, memory: torch.Tensor, src_mask: torch.Tensor, tgt: torch.Tensor, tgt_mask: torch.Tensor) -> torch.Tensor:  # 定义decode函数，接收memory, src_mask, tgt和tgt_mask四个参数
 		"""
 		解码
 		Args:
@@ -609,17 +497,9 @@ class Transformer(nn.Module):  # 定义Transformer类
 		Returns:
 			输出
 		"""
-		return self.decoder(
-			self.tgt_embed(tgt), memory, src_mask, tgt_mask
-		)  # 返回解码器的输出，其中解码器的输入为tgt经过tgt_embed的结果, memory, src_mask和tgt_mask
+		return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask)  # 返回解码器的输出，其中解码器的输入为tgt经过tgt_embed的结果, memory, src_mask和tgt_mask
 
-	def forward(
-		self,
-		src: torch.Tensor,
-		tgt: torch.Tensor,
-		src_mask: torch.Tensor,
-		tgt_mask: torch.Tensor,
-	) -> torch.Tensor:  # 定义前向传播函数，接收src, tgt, src_mask和tgt_mask四个参数
+	def forward(self, src: torch.Tensor, tgt: torch.Tensor, src_mask: torch.Tensor, tgt_mask: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收src, tgt, src_mask和tgt_mask四个参数
 		"""
 		编码解码器
 		Args:
@@ -630,12 +510,9 @@ class Transformer(nn.Module):  # 定义Transformer类
 		Returns:
 			输出
 		"""
-		"Take in and process masked src and target sequences."
-		return self.decode(
-			self.encode(src, src_mask), src_mask, tgt, tgt_mask
-		)  # 返回解码器的输出，其中解码器的输入为编码器的输出，src_mask, tgt和tgt_mask
+		return self.decode(self.encode(src, src_mask), src_mask, tgt, tgt_mask)  # 返回解码器的输出，其中解码器的输入为编码器的输出，src_mask, tgt和tgt_mask
 
-	def generate(self, src: str) -> str:  # 定义生成函数
+	def generate(self, src: str, max_len: int = 100) -> str:  # 定义生成函数
 		"""
 		生成
 		Args:
@@ -650,11 +527,14 @@ class Transformer(nn.Module):  # 定义Transformer类
 		# 使用 <bos> token 初始化 tgt
 		tgt = torch.tensor([[self.tokenizer.bos_token_id]], dtype=torch.long)  # 初始化目标语言
 
-		max_len = 100  # 设置最大生成长度
 		for _ in range(max_len):  # 循环生成
+			# 第N次循环时，tgt.shape=(1, N)
+
 			# 创建 tgt_mask: 三角形遮罩
-			tgt_mask = (torch.triu(torch.ones(tgt.size(1), tgt.size(1))) == 1).transpose(0, 1)  # 创建目标语言掩码, tgt_mask只需要是 (seq_len, seq_len) 的形状
+			tgt_len = tgt.size(1)  # 获取当前tgt的长度
+			tgt_mask = (torch.triu(torch.ones(tgt_len, tgt_len)) == 1).transpose(0, 1)  # 创建目标语言掩码
 			tgt_mask = (tgt_mask.float().masked_fill(tgt_mask == 0, float("-inf")).masked_fill(tgt_mask == 1, float(0.0)))  # 将目标语言掩码中的0填充为负无穷大，1填充为0
+			tgt_mask = tgt_mask.unsqueeze(0)  # 增加一个维度
 
 			# 解码时只使用当前生成的序列
 			out = self.decode(memory, src_mask, tgt, tgt_mask)  # 解码
@@ -671,7 +551,5 @@ class Transformer(nn.Module):  # 定义Transformer类
 		return self.tokenizer.decode(tgt[0].tolist())  # 解码为目标语言
 
 
-tt = Transformer(
-	d_model=512, n_heads=8, d_ff=2048, n_layers=6, dropout=0.1
-)  # 实例化Transformer
+tt = Transformer(d_model=512, n_heads=8, d_ff=2048, n_layers=6, dropout=0.1)  # 实例化Transformer
 print(tt.generate("你好"))  # 生成目标语言
