@@ -543,13 +543,55 @@ class Transformer(nn.Module):  # 定义Transformer类
 			next_word = next_word.item()  # 获取概率最大的词的id
 
 			# 将新生成的 token 添加到 tgt
-			tgt = torch.cat([tgt, torch.tensor([[next_word]], dtype=torch.long)], dim=1)  # 将生成的词添加到目标语言中
+			tgt = torch.cat([tgt, torch.tensor([[next_word]], dtype=torch.long)], dim=1)
 
 			if next_word == self.tokenizer.eos_token_id:  # 如果生成了 <eos> token，则停止
 				break
 
 		return self.tokenizer.decode(tgt[0].tolist())  # 解码为目标语言
 
+	def train(self, src: str, tgt: str):
+		super().train()
+		"""
+		训练模型
+		Args:
+			src: 源语言
+			tgt: 目标语言
+		Returns:
+			无
+		"""
+		# 实现代码补全的训练
+		src_ids = torch.tensor(self.tokenizer.encode(src), dtype=torch.long).unsqueeze(0)
+		src_mask = torch.ones(src_ids.size(1), src_ids.size(1), dtype=torch.bool)
+		tgt_ids = torch.tensor(self.tokenizer.encode(tgt), dtype=torch.long).unsqueeze(0)
+
+		# 打印目标序列的值和词汇表大小
+		print("tgt_ids:", tgt_ids)
+		print("Vocabulary size:", self.tokenizer.vocab_size)
+
+		# 检查目标序列中的索引是否超出范围
+		if (tgt_ids >= self.tokenizer.vocab_size).any():
+			raise ValueError("Target indices are out of bounds.")
+
+		tgt_mask = torch.ones(tgt_ids.size(1), tgt_ids.size(1), dtype=torch.bool)
+		memory = self.encode(src_ids, src_mask)
+		out = self.decode(memory, src_mask, tgt_ids, tgt_mask)
+
+		outstr = self.tokenizer.decode(out.argmax(dim=-1).squeeze().tolist())
+		print("outstr:", outstr)
+
+		# 计算损失
+		loss_fn = nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id)  # 忽略填充索引
+		loss = loss_fn(out.view(-1, out.size(-1)), tgt_ids.view(-1))  # 计算损失，确保输出和目标都是一维的
+
+		loss.backward()  # 反向传播
+		self.optimizer.step()  # 更新参数
+		return loss.item()  # 返回标量损失值
+
 
 tt = Transformer(d_model=512, n_heads=8, d_ff=2048, n_layers=6, dropout=0.1)  # 实例化Transformer
-print(tt.generate("你好"))  # 生成目标语言
+
+tt.train("世界", "你好")
+
+
+print(tt.generate("世界"))  # 生成目标语言
