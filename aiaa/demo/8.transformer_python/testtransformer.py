@@ -5,6 +5,7 @@ import transformers  # 导入transformers库
 from modelscope import snapshot_download  # 从modelscope导入snapshot_download函数
 import torch.nn.functional as F  # 导入torch.nn.functional模块
 import copy  # 导入copy库
+import torch.optim as optim  # 导入torch.optim模块
 
 
 class Embeddings(nn.Module):  # 定义Embeddings类，继承自nn.Module
@@ -37,25 +38,25 @@ class PositionalEncoding(nn.Module):  # 定义PositionalEncoding类，继承自n
 	"""
 	PositionalEncoding类是位置编码层，用于将位置信息添加到输入中
 	"""
-	def __init__(self, d_model: int, dropout: float, max_len: int = 5000):  # 定义构造函数，接收d_model, dropout和max_len三个参数
+	def __init__(self, d_model: int, dropout: float, max_length: int = 5000):  # 定义构造函数，接收d_model, dropout和max_length三个参数
 		"""
 		初始化PositionalEncoding类
 		Args:
 			d_model: 模型的维度
 			dropout: dropout比率
-			max_len: 最大长度
+			max_length: 最大长度
 		"""
 		super().__init__()  # 调用父类nn.Module的构造函数
 		self.dropout = nn.Dropout(p=dropout)  # 创建一个Dropout层，接收dropout参数
 
-		pe = torch.zeros(max_len, d_model)  # 创建一个形状为(max_len, d_model)的0矩阵
-		position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # 创建一个形状为(max_len, 1)的tensor，值为0到max_len-1
+		pe = torch.zeros(max_length, d_model)  # 创建一个形状为(max_length, d_model)的0矩阵
+		position = torch.arange(0, max_length, dtype=torch.float).unsqueeze(1)  # 创建一个形状为(max_length, 1)的tensor，值为0到max_length-1
 		div_term = torch.exp(
 			torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
 		)  # 创建一个形状为(d_model/2,)的tensor
 		pe[:, 0::2] = torch.sin(position * div_term)  # 将pe矩阵的偶数列赋值为sin(position * div_term)
 		pe[:, 1::2] = torch.cos(position * div_term)  # 将pe矩阵的奇数列赋值为cos(position * div_term)
-		pe = pe.unsqueeze(0)  # 将pe矩阵的形状变为(1, max_len, d_model)
+		pe = pe.unsqueeze(0)  # 将pe矩阵的形状变为(1, max_length, d_model)
 		self.register_buffer("pe", pe)  # 将pe注册为buffer
 
 	def forward(self, x: torch.Tensor) -> torch.Tensor:  # 定义前向传播函数，接收一个tensor类型的参数x
@@ -443,7 +444,7 @@ class Transformer(nn.Module):  # 定义Transformer类
 	"""
 	Transformer类是Transformer模型，用于将输入的src, tgt, src_mask和tgt_mask转换为生成器的输出
 	"""
-	def __init__(self, d_model: int, n_heads: int, d_ff: int, n_layers: int, dropout: float = 0.1):  # 定义构造函数
+	def __init__(self, d_model: int, n_heads: int, d_ff: int, n_layers: int, dropout: float = 0.1,max_length: int = 200):  # 定义构造函数
 		"""
 		初始化Transformer
 		Args:
@@ -452,12 +453,14 @@ class Transformer(nn.Module):  # 定义Transformer类
 			d_ff: 前馈神经网络的维度
 			n_layers: 编码器和解码器的层数
 			dropout: dropout比率
+			max_length: 上下文长度
 		"""
 		super(Transformer, self).__init__()  # 调用父类的构造函数
+		self.max_length = max_length # 上下文长度
 		c = copy.deepcopy  # 定义别名
 		attn = MultiHeadedAttention(d_model, n_heads)  # 实例化MultiHeadedAttention
 		ff = PositionwiseFeedForward(d_model, d_ff, dropout)  # 实例化PositionwiseFeedForward
-		position = PositionalEncoding(d_model, dropout)  # 实例化PositionalEncoding
+		position = PositionalEncoding(d_model, dropout,max_length)  # 实例化PositionalEncoding
 		self.encoder = Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), n_layers)  # 实例化Encoder
 		self.decoder = Decoder(DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout), n_layers)  # 实例化Decoder
 
@@ -469,6 +472,7 @@ class Transformer(nn.Module):  # 定义Transformer类
 
 		self.src_embed = nn.Sequential(Embeddings(d_model, self.tokenizer.vocab_size), c(position))  # 定义源语言嵌入
 		self.tgt_embed = nn.Sequential(Embeddings(d_model, self.tokenizer.vocab_size), c(position))  # 定义目标语言嵌入
+		self.embeddings = nn.Sequential(Embeddings(d_model, self.tokenizer.vocab_size), c(position))  # 定义嵌入
 
 		# 初始化模型参数
 		for p in self.parameters():  # 遍历模型参数
@@ -550,6 +554,46 @@ class Transformer(nn.Module):  # 定义Transformer类
 
 		return self.tokenizer.decode(tgt[0].tolist())  # 解码为目标语言
 
+	def learn(self, src: str, tgt: str,learning_rate: float = 1e-3):
+		self.train()
+		self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+		src_ids = torch.tensor(self.tokenizer.encode(src), dtype=torch.long).unsqueeze(0)
+		tgt_ids = torch.tensor(self.tokenizer.encode(tgt), dtype=torch.long).unsqueeze(0)
+
+		# 修改src_ids和tgt_ids的形状
+		src_ids = torch.cat([src_ids, torch.zeros(1, self.max_length - src_ids.size(1), dtype=torch.long)], dim=1)
+		tgt_ids = torch.cat([tgt_ids, torch.zeros(1, self.max_length - tgt_ids.size(1), dtype=torch.long)], dim=1)
+
+
+		src_mask = torch.ones(src_ids.size(1), src_ids.size(1), dtype=torch.bool)
+		tgt_mask = torch.ones(tgt_ids.size(1), tgt_ids.size(1), dtype=torch.bool)
+		src = self.embeddings(src_ids)
+		memory = self.encoder.forward(src_ids.float(), src_mask)
+		print("memory.shape=",memory.shape)
+		print("src_mask.shape=",src_mask.shape)
+		print("src_ids.shape=",src_ids.shape)
+		print("tgt_ids.shape=",tgt_ids.shape)
+		print("src.shape=",src.shape)
+		print("tgt_mask.shape=",tgt_mask.shape)
+		output = self.decoder.forward(self.embeddings(tgt_ids), memory, src_mask, tgt_mask)
+		print("output.shape=",output.shape)
+		output = self.generator(output[:, -1])
+		print("output.shape=",output.shape)
+		loss = F.nll_loss(output, tgt_ids[:, -1])
+		print("loss=",loss)
+		loss.backward()
+		self.optimizer.step()
+		return loss.item()
 
 tt = Transformer(d_model=512, n_heads=8, d_ff=2048, n_layers=6, dropout=0.1)  # 实例化Transformer
+
+
+for i in range(3):
+	tt.learn("你好", "北京",learning_rate=1e-3)
+	tt.learn("北京", "天津",learning_rate=1e-3)
+
+
 print(tt.generate("你好"))  # 生成目标语言
+print(tt.generate("北京"))  # 生成目标语言
+ 
+ 
