@@ -516,6 +516,19 @@ class Transformer(nn.Module):  # 定义Transformer类
 		"""
 		return self.decode(self.encode(src, src_mask), src_mask, tgt, tgt_mask)  # 返回解码器的输出，其中解码器的输入为编码器的输出，src_mask, tgt和tgt_mask
 
+
+	def subsequent_mask(self, size: int) -> torch.Tensor:  # 定义subsequent_mask函数，接收size一个参数
+		"""
+		生成后续掩码
+		Args:
+			size: 掩码的大小
+		Returns:
+			torch.Tensor: 后续掩码
+		"""
+		attn_shape = (1, size, size)  # 创建一个形状为(1, size, size)的张量
+		subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8)  # 创建一个上三角矩阵，并将其转换为无符号整数类型
+		return subsequent_mask == 0  # 返回上三角矩阵，并将其转换为布尔类型
+
 	def generate(self, src: str, max_len: int = 100) -> str:  # 定义生成函数
 		"""
 		生成
