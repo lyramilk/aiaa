@@ -454,7 +454,7 @@ class TranslationDataset(Dataset):
             源语言文本、目标语言文本和目标语言文本的编码
         """
         # 编码源文本
-        src_encoded = self.tokenizer(
+        encoder_inputs = self.tokenizer(
             self.data[idx][0], 
             padding='max_length',
             truncation=True,
@@ -462,10 +462,10 @@ class TranslationDataset(Dataset):
             return_tensors='pt'
         )
         # 获取源文本的编码
-        src_ids = src_encoded['input_ids'].squeeze()
+        encoder_ids = encoder_inputs['input_ids'].squeeze()
 
-        # 编码目标文本 - 两次编码，一次用于输入，一次用于标签
-        tgt_encoded_input = self.tokenizer(
+        # 对outputs进行两次编码，一次用于解码器的输入，一次用于验证最终的输出。
+        decoder_inputs = self.tokenizer(
             self.data[idx][1], 
             padding='max_length',
             truncation=True,
@@ -473,22 +473,16 @@ class TranslationDataset(Dataset):
             return_tensors='pt'
         )
         # 获取目标文本的编码
-        tgt_encoded_output = self.tokenizer(
-            self.data[idx][1], 
-            padding='max_length',
-            truncation=True,
-            max_length=self.max_len,
-            return_tensors='pt'
-        )
+        decoder_outputs = decoder_inputs.copy();
         
         # 输入(decoder input): [BOS, token1, token2, ..., EOS, PAD, ...]
         # 输出(target): [token1, token2, ..., EOS, PAD, ...]
-        tgt_input_ids = tgt_encoded_input['input_ids'].squeeze()
+        decoder_inputs_ids = decoder_inputs['input_ids'].squeeze()
         # 获取目标文本的编码
-        tgt_output_ids = tgt_encoded_output['input_ids'].squeeze()
+        decoder_outputs_ids = decoder_outputs['input_ids'].squeeze()
         
         # 返回源语言文本、目标语言文本和目标语言文本的编码
-        return src_ids, tgt_input_ids, tgt_output_ids
+        return encoder_ids, decoder_inputs_ids, decoder_outputs_ids
 
 # Transformer 模型
 class Transformer(nn.Module):
