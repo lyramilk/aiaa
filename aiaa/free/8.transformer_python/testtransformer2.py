@@ -98,6 +98,9 @@ class ScaledDotProductAttention(nn.Module):
 
 # 多头注意力机制
 class MultiHeadAttention(nn.Module):
+    """
+    多头注意力机制，用于将输入的查询、键和值转换为上下文向量和注意力权重。
+    """
     def __init__(self, d_model: int, n_heads: int, d_k: int, d_v: int):
         """
         初始化多头注意力机制

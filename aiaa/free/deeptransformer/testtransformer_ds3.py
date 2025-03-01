@@ -16,7 +16,6 @@ class ModelArgs:
     用于定义模型Args和超Args的数据类。
 
     Attributes:
-        max_batch_size (int): 最大批处理大小。
         max_seq_len (int): 最大序列长度。
         dtype (Literal["bf16"]): 计算的数据类型。
         vocab_size (int): 词汇表大小。
@@ -29,12 +28,8 @@ class ModelArgs:
         n_routed_experts (int): MoE层的路由专家数量。
         n_shared_experts (int): MoE层的共享专家数量。
         n_activated_experts (int): MoE层中激活的专家数量。
-        n_expert_groups (int): 专家组的数量。
-        n_limited_groups (int): MoE路由的限制组数量。
         score_func (Literal["softmax", "sigmoid"]): MoE路由的评分函数。
         route_scale (float): 路由分数的缩放因子。
-        q_lora_rank (int): 查询投影的LoRA秩。
-        kv_lora_rank (int): 键值投影的LoRA秩。
         qk_nope_head_dim (int): 无位置嵌入的查询-键投影的维度。
         qk_rope_head_dim (int): 带旋转嵌入的查询-键投影的维度。
         v_head_dim (int): 值投影的维度。
@@ -43,10 +38,7 @@ class ModelArgs:
         rope_factor (float): 扩展序列长度的缩放因子。
         beta_fast (int): 快速beta校正因子。
         beta_slow (int): 慢速beta校正因子。
-        mscale (float): 扩展注意力的缩放因子。
     """
-    # 最大批处理大小
-    max_batch_size: int = 8
     # 最大序列长度
     max_seq_len: int = 4096 * 4
     # 数据类型
@@ -71,18 +63,10 @@ class ModelArgs:
     n_shared_experts: int = 2
     # MoE层中激活的专家数量
     n_activated_experts: int = 6
-    # 专家组的数量
-    n_expert_groups: int = 1
-    # MoE路由的限制组数量
-    n_limited_groups: int = 1
     # MoE路由的评分函数
     score_func: Literal["softmax", "sigmoid"] = "softmax"
     # 路由分数的缩放因子
     route_scale: float = 1.
-    # 查询投影的LoRA秩
-    q_lora_rank: int = 0
-    # 键值投影的LoRA秩
-    kv_lora_rank: int = 512
     # 无位置嵌入的查询-键投影的维度
     qk_nope_head_dim: int = 128
     # 带旋转嵌入的查询-键投影的维度
@@ -99,8 +83,6 @@ class ModelArgs:
     beta_fast: int = 32
     # 慢速beta校正因子
     beta_slow: int = 1
-    # 扩展注意力的缩放因子
-    mscale: float = 1.
 
 
 class Embedding(nn.Module):
